@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Probador de Trenzas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3e5f5; /* Color lila claro */
+        }
+        .container {
+            max-width: 100vw;
+            overflow-x: hidden;
+        }
+        #canvas-container {
+            position: relative;
+            background-color: #fff;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid #e0b0ff;
+        }
+        #canvas, #photo {
+            width: 100%;
+            display: block;
+        }
+        .control-panel {
+            background-color: #ffffff;
+            border-radius: 12px;
+            padding: 1rem;
+            box-shadow: 0 -4px 6px rgba(0, 0, 0, 0.05);
+            border-top: 2px solid #e0b0ff;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .color-palette {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+            gap: 0.5rem;
+            padding: 0.5rem;
+            border-radius: 8px;
+            background-color: #f7f3f9;
+        }
+        .color-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .color-circle:hover {
+            transform: scale(1.1);
+        }
+        .color-circle.selected {
+            border-color: #a052e6; /* Morado fuerte para la selección */
+            transform: scale(1.1);
+        }
+        .control-button {
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .control-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .primary-button {
+            background-color: #8a2be2; /* Azul violeta */
+            color: white;
+        }
+        .secondary-button {
+            background-color: #e9d5ff; /* Lila */
+            color: #4b0082; /* Índigo */
+        }
+        .modal {
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: #fff;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+            width: 90%;
+            max-width: 500px;
+            text-align: center;
+        }
+        .firebase-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        input[type="text"], input[type="file"] {
+            border: 1px solid #ddd;
+            padding: 0.75rem;
+            border-radius: 8px;
+        }
+        .color-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 0.5rem;
+            margin-top: 1rem;
+        }
+        .color-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem;
+            background-color: #f9f9f9;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4 min-h-screen flex flex-col items-center">
+
+    <!-- Mensaje de inicio -->
+    <div id="start-message" class="fixed inset-0 bg-white z-50 flex items-center justify-center p-4">
+        <div class="text-center">
+            <h1 class="text-3xl font-bold mb-4 text-purple-800">Probador de Trenzas</h1>
+            <p class="text-lg text-gray-700 mb-6">Sube una foto de tu cabello y prueba diferentes colores de trenzas.</p>
+            <button id="get-started-btn" class="bg-purple-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-purple-700 transition">Comenzar</button>
+        </div>
+    </div>
+
+    <!-- Contenedor principal de la app -->
+    <div id="app-container" class="container mx-auto bg-white rounded-xl shadow-lg p-6 flex flex-col lg:flex-row gap-6 hidden">
+        
+        <!-- Panel de control (izquierda en pantallas grandes) -->
+        <div class="control-panel w-full lg:w-1/3">
+            <h2 class="text-2xl font-bold text-purple-800 text-center mb-4">Herramientas</h2>
+            
+            <div class="flex flex-col gap-4">
+                <label for="image-upload" class="bg-purple-600 text-white px-6 py-3 rounded-full font-bold text-center cursor-pointer hover:bg-purple-700 transition">
+                    Subir Foto
+                </label>
+                <input type="file" id="image-upload" accept="image/*" class="hidden">
+            </div>
+
+            <div class="flex flex-col gap-4">
+                <button id="paint-button" class="bg-purple-600 text-white px-6 py-3 rounded-full font-bold hover:bg-purple-700 transition">
+                    Empezar a Pintar
+                </button>
+                <button id="clear-button" class="bg-red-500 text-white px-6 py-3 rounded-full font-bold hover:bg-red-600 transition">
+                    Limpiar Canvas
+                </button>
+                <button id="save-button" class="bg-green-500 text-white px-6 py-3 rounded-full font-bold hover:bg-green-600 transition">
+                    Guardar Imagen
+                </button>
+                <button id="share-button" class="bg-blue-500 text-white px-6 py-3 rounded-full font-bold hover:bg-blue-600 transition">
+                    Compartir
+                </button>
+            </div>
+
+            <!-- Paleta de colores -->
+            <div>
+                <h3 class="font-bold text-purple-700 mb-2 text-lg">Catálogo de Colores</h3>
+                <div id="color-palette" class="color-palette"></div>
+            </div>
+
+            <!-- Gestión del catálogo (para ti) -->
+            <div class="mt-4 border-t pt-4">
+                <h3 class="font-bold text-purple-700 mb-2 text-lg">Gestionar mi Catálogo</h3>
+                <div class="firebase-form">
+                    <input type="color" id="color-picker-input" class="w-full h-12 rounded-lg border-none cursor-pointer">
+                    <input type="text" id="color-name-input" placeholder="Nombre del color (ej. BY13)" class="rounded-lg">
+                    <button id="add-color-button" class="bg-purple-400 text-purple-900 px-4 py-2 rounded-full font-bold hover:bg-purple-500 transition">Añadir Color</button>
+                </div>
+                <div id="color-list" class="color-list mt-4"></div>
+            </div>
+        </div>
+
+        <!-- Área del canvas (derecha en pantallas grandes) -->
+        <div id="canvas-container" class="flex-grow">
+            <img id="photo" src="" alt="Sube tu foto" class="rounded-lg" style="display: none;">
+            <canvas id="canvas" class="rounded-lg"></canvas>
+        </div>
+    </div>
+    
+    <!-- Mensaje para cuando no hay foto -->
+    <div id="no-photo-message" class="text-center text-gray-500 mt-8 hidden">
+        <p>Sube una foto para empezar a probar colores.</p>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-container" class="modal hidden">
+        <div class="modal-content">
+            <p id="modal-message" class="text-gray-800 text-lg"></p>
+            <button id="modal-close-btn" class="bg-purple-600 text-white px-6 py-2 mt-4 rounded-full hover:bg-purple-700 transition">Cerrar</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, collection, addDoc, getDocs, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase config and initialization
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db, auth;
+        let isAuthReady = false;
+        let userId = null;
+        let userAuthData = null;
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+        let selectedColor = '#000000';
+        let selectedColorName = 'black';
+        let isGradient = false;
+        let isErasing = false;
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const imageUpload = document.getElementById('image-upload');
+        const photo = document.getElementById('photo');
+        const colorPalette = document.getElementById('color-palette');
+        const clearButton = document.getElementById('clear-button');
+        const paintButton = document.getElementById('paint-button');
+        const saveButton = document.getElementById('save-button');
+        const shareButton = document.getElementById('share-button');
+        const startMessage = document.getElementById('start-message');
+        const appContainer = document.getElementById('app-container');
+        const getStartedBtn = document.getElementById('get-started-btn');
+        const noPhotoMessage = document.getElementById('no-photo-message');
+
+        const colorPickerInput = document.getElementById('color-picker-input');
+        const colorNameInput = document.getElementById('color-name-input');
+        const addColorButton = document.getElementById('add-color-button');
+        const colorList = document.getElementById('color-list');
+
+        const modalContainer = document.getElementById('modal-container');
+        const modalMessage = document.getElementById('modal-message');
+        const modalCloseBtn = document.getElementById('modal-close-btn');
+
+        function showMessage(message) {
+            modalMessage.textContent = message;
+            modalContainer.classList.remove('hidden');
+        }
+
+        modalCloseBtn.addEventListener('click', () => {
+            modalContainer.classList.add('hidden');
+        });
+
+        // Set up firebase only when window is loaded.
+        window.onload = function() {
+            if (Object.keys(firebaseConfig).length > 0) {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                setLogLevel('debug');
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userAuthData = user;
+                        userId = userAuthData.uid;
+                        isAuthReady = true;
+                        console.log("Firebase auth ready. User ID:", userId);
+                        setupFirebaseListeners();
+                    } else {
+                        try {
+                            if (initialAuthToken) {
+                                await signInWithCustomToken(auth, initialAuthToken);
+                            } else {
+                                await signInAnonymously(auth);
+                            }
+                        } catch (error) {
+                            console.error("Firebase auth error:", error);
+                        }
+                    }
+                });
+            } else {
+                showMessage("Firebase no está configurado. La aplicación funcionará sin guardar los colores.");
+                isAuthReady = true;
+            }
+        };
+
+        function setupFirebaseListeners() {
+            if (!isAuthReady) return;
+            const collectionPath = `/artifacts/${appId}/public/data/colors`;
+            const q = collection(db, collectionPath);
+            onSnapshot(q, (querySnapshot) => {
+                const colors = [];
+                querySnapshot.forEach((doc) => {
+                    colors.push({ id: doc.id, ...doc.data() });
+                });
+                renderColorPalette(colors);
+                renderColorList(colors);
+            });
+        }
+        
+        async function addColor(colorName, colorCode) {
+            if (!isAuthReady) {
+                showMessage("Firebase no está listo. Inténtalo de nuevo en unos segundos.");
+                return;
+            }
+            if (!colorName || !colorCode) {
+                showMessage("Por favor, introduce el nombre y el código del color.");
+                return;
+            }
+            try {
+                const collectionPath = `/artifacts/${appId}/public/data/colors`;
+                await addDoc(collection(db, collectionPath), {
+                    name: colorName,
+                    code: colorCode,
+                });
+                showMessage("Color añadido con éxito.");
+                colorNameInput.value = '';
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                showMessage("Error al añadir el color. Revisa la consola para más detalles.");
+            }
+        }
+        
+        async function deleteColor(docId) {
+            if (!isAuthReady) {
+                showMessage("Firebase no está listo. Inténtalo de nuevo en unos segundos.");
+                return;
+            }
+            try {
+                const collectionPath = `/artifacts/${appId}/public/data/colors`;
+                await deleteDoc(doc(db, collectionPath, docId));
+                showMessage("Color eliminado con éxito.");
+            } catch (e) {
+                console.error("Error deleting document: ", e);
+                showMessage("Error al eliminar el color. Revisa la consola para más detalles.");
+            }
+        }
+        
+        function renderColorPalette(colors) {
+            colorPalette.innerHTML = '';
+            colors.forEach(color => {
+                const colorDiv = document.createElement('div');
+                colorDiv.classList.add('color-circle');
+                colorDiv.style.backgroundColor = color.code;
+                colorDiv.dataset.name = color.name;
+                colorDiv.dataset.code = color.code;
+                
+                if (color.name.toLowerCase().includes('degrade')) {
+                    const gradientColors = color.code.split(',').map(c => c.trim());
+                    if (gradientColors.length > 1) {
+                        colorDiv.style.background = `linear-gradient(135deg, ${gradientColors.join(', ')})`;
+                    }
+                }
+
+                colorDiv.addEventListener('click', () => {
+                    selectedColor = color.code;
+                    selectedColorName = color.name;
+                    isGradient = color.name.toLowerCase().includes('degrade');
+                    document.querySelectorAll('.color-circle').forEach(div => div.classList.remove('selected'));
+                    colorDiv.classList.add('selected');
+                });
+                colorPalette.appendChild(colorDiv);
+            });
+        }
+        
+        function renderColorList(colors) {
+            colorList.innerHTML = '';
+            colors.forEach(color => {
+                const item = document.createElement('div');
+                item.classList.add('color-item');
+                item.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span style="background-color: ${color.code}; width: 20px; height: 20px; border-radius: 4px; border: 1px solid #ccc;"></span>
+                        <span>${color.name}</span>
+                    </div>
+                    <button class="text-red-500 hover:text-red-700 font-bold text-sm" data-id="${color.id}">Eliminar</button>
+                `;
+                item.querySelector('button').addEventListener('click', (e) => {
+                    deleteColor(e.target.dataset.id);
+                });
+                colorList.appendChild(item);
+            });
+        }
+
+        // Add event listeners for the new control buttons
+        addColorButton.addEventListener('click', () => {
+            const name = colorNameInput.value.trim();
+            const code = colorPickerInput.value.trim();
+            addColor(name, code);
+        });
+
+        getStartedBtn.addEventListener('click', () => {
+            startMessage.classList.add('hidden');
+            appContainer.classList.remove('hidden');
+            noPhotoMessage.classList.remove('hidden');
+        });
+
+        imageUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    photo.src = event.target.result;
+                    photo.onload = () => {
+                        canvas.width = photo.width;
+                        canvas.height = photo.height;
+                        ctx.drawImage(photo, 0, 0);
+                        photo.style.display = 'none';
+                        noPhotoMessage.classList.add('hidden');
+                        document.getElementById('canvas-container').style.width = photo.width + 'px';
+                        document.getElementById('canvas-container').style.height = photo.height + 'px';
+                    };
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        paintButton.addEventListener('click', () => {
+            isDrawing = true;
+            isErasing = false;
+        });
+
+        clearButton.addEventListener('click', () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(photo, 0, 0);
+            showMessage('Canvas limpiado. ¡Puedes empezar de nuevo!');
+        });
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (!isDrawing) return;
+            lastX = e.offsetX;
+            lastY = e.offsetY;
+            isDrawing = true;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isDrawing) return;
+
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(e.offsetX, e.offsetY);
+            ctx.lineCap = 'round';
+            ctx.lineWidth = 20;
+
+            if (isGradient && selectedColor) {
+                const gradientColors = selectedColor.split(',').map(c => c.trim());
+                if (gradientColors.length > 1) {
+                    const gradient = ctx.createLinearGradient(lastX, lastY, e.offsetX, e.offsetY);
+                    gradient.addColorStop(0, gradientColors[0]);
+                    gradient.addColorStop(1, gradientColors[gradientColors.length - 1]);
+                    ctx.strokeStyle = gradient;
+                }
+            } else {
+                ctx.strokeStyle = selectedColor;
+            }
+            
+            ctx.stroke();
+
+            lastX = e.offsetX;
+            lastY = e.offsetY;
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isDrawing = false;
+        });
+
+        canvas.addEventListener('mouseout', () => {
+            isDrawing = false;
+        });
+        
+        // Mobile touch events
+        canvas.addEventListener('touchstart', (e) => {
+            if (!isDrawing) return;
+            const touch = e.touches[0];
+            const rect = e.target.getBoundingClientRect();
+            lastX = touch.clientX - rect.left;
+            lastY = touch.clientY - rect.top;
+            isDrawing = true;
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (!isDrawing) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = e.target.getBoundingClientRect();
+            const newX = touch.clientX - rect.left;
+            const newY = touch.clientY - rect.top;
+
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(newX, newY);
+            ctx.lineCap = 'round';
+            ctx.lineWidth = 20;
+
+            if (isGradient && selectedColor) {
+                const gradientColors = selectedColor.split(',').map(c => c.trim());
+                if (gradientColors.length > 1) {
+                    const gradient = ctx.createLinearGradient(lastX, lastY, newX, newY);
+                    gradient.addColorStop(0, gradientColors[0]);
+                    gradient.addColorStop(1, gradientColors[gradientColors.length - 1]);
+                    ctx.strokeStyle = gradient;
+                }
+            } else {
+                ctx.strokeStyle = selectedColor;
+            }
+
+            ctx.stroke();
+
+            lastX = newX;
+            lastY = newY;
+        });
+
+        canvas.addEventListener('touchend', () => {
+            isDrawing = false;
+        });
+
+        saveButton.addEventListener('click', () => {
+            const dataURL = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.href = dataURL;
+            link.download = 'mi_creacion_trenzas.png';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showMessage('Imagen guardada en tu dispositivo.');
+        });
+        
+        shareButton.addEventListener('click', async () => {
+            try {
+                const dataURL = canvas.toDataURL('image/png');
+                const blob = await (await fetch(dataURL)).blob();
+                const file = new File([blob], 'mi_creacion_trenzas.png', { type: 'image/png' });
+
+                if (navigator.share) {
+                    await navigator.share({
+                        title: 'Probador de Trenzas',
+                        text: '¡Mira mi nuevo look de trenzas que probé con esta app!',
+                        files: [file],
+                    });
+                } else {
+                    showMessage('La función de compartir no está disponible en este navegador. Puedes guardar la imagen y compartirla manualmente.');
+                }
+            } catch (error) {
+                console.error('Error al compartir:', error);
+                showMessage('Ocurrió un error al compartir. Inténtalo de nuevo.');
+            }
+        });
+    </script>
+</body>
+</html>
